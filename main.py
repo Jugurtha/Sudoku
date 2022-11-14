@@ -1,12 +1,15 @@
 import pandas as pd
 import itertools as it
+import os
+import sys
+
 
 
 def calculate_possible_values(sub_grids : pd.DataFrame, nbr_sub_grids) -> dict:
     possibilities = {}
     for l in range(nbr_sub_grids):
         for c in range(nbr_sub_grids):
-            print(f'\n{(l,c)}:')
+            #print(f'\n{(l,c)}:')
             #print(sub_grids.loc[l,c])
             possible_values = numbers.difference({i for i in sub_grids.loc[l,c].stack().values})
             for sl in sub_grids.loc[l,c].index.values.tolist():
@@ -14,8 +17,8 @@ def calculate_possible_values(sub_grids : pd.DataFrame, nbr_sub_grids) -> dict:
                     if sub_grids.loc[l,c].loc[sl,sc] == 0:
                         new = {(sl,sc): possible_values.difference(set(grid.loc[sl,:].values)).difference(set(grid.loc[:,sc].values))}
                         possibilities.update(new)
-                        print(f'{new}')
-            print()
+                        #print(f'{new}')
+            #print()
     return possibilities
 
 
@@ -82,21 +85,22 @@ if __name__ == '__main__':
     grid.loc[7,6] = 5
     grid.loc[8,8] = 4
 
-    workers = []
-    print(grid)
+    pid = -1
+    print('\nGrid : \n',grid,'\n')
+    sys.stdout.flush()
     possibilities = calculate_possible_values(sub_grids, nbr_sub_grids)
     nbr_uniques = nbr_unique_possibility(possibilities)
-    print(f'Number of unique possibility cells : {nbr_uniques}')
+    #print(f'Number of unique possibility cells : {nbr_uniques}')
     
     while nbr_uniques> 0:
         for cell, possible_values in possibilities.items():
             if len(possible_values) == 1:
-                print(cell,possible_values)
+                #print(cell,possible_values)
                 grid.loc[cell[0],cell[1]]= possible_values.pop()
-        print(grid)
+        #print(grid)
         possibilities = calculate_possible_values(sub_grids, nbr_sub_grids)
         nbr_uniques = nbr_unique_possibility(possibilities)
-        print(f'Number of unique possibility cells : {nbr_uniques}')
+        #print(f'Number of unique possibility cells : {nbr_uniques}')
         if nbr_uniques == 0 and cells_with_nbr_possibilities(possibilities,2)[0] != 0:
             sub_grid_zeros = {}
             for l in range(nbr_sub_grids):
@@ -108,18 +112,52 @@ if __name__ == '__main__':
 
             current_sub_grid = sorted(sub_grid_zeros, key=sub_grid_zeros.get)[0]
             current_cells = set(it.product(sub_grids.loc[current_sub_grid[0],current_sub_grid[1]].index.values,sub_grids.loc[current_sub_grid[0],current_sub_grid[1]].columns.values))
-            possible_current_cells = list(current_cells.intersection(set(cells_with_nbr_possibilities(possibilities,2)[1].keys())))
-            print('possible_current_cells : ',possible_current_cells)
+            t = {i: len(possibilities[i]) if i in possibilities else 10 for i in current_cells}
+            #print(t)
+            #print(t[sorted(t, key=t.get)[0]])
+            smallest_nbr_possibility = t[sorted(t, key=t.get)[0]]
+            if smallest_nbr_possibility == 0:
+                break
+            possible_current_cells = list(current_cells.intersection(set(cells_with_nbr_possibilities(possibilities,smallest_nbr_possibility)[1].keys())))
             
+            #print('possible_current_cells : ',possible_current_cells)
+            if not possible_current_cells:
+                break
             current_cell = possible_current_cells[0]
-            grid.loc[current_cell[0],current_cell[1]]= possibilities[current_cell].pop()
-            print(grid)
+            
+            for c in range(len(possible_current_cells)):
+                current_cell = possible_current_cells[c]
+                pid = os.fork()
+                if pid == 0: #if in child process
+                    break
+
+            if pid != 0: #if in paarent process
+                break
+            
+            #print(current_cell,possibilities[current_cell])
+            chosen_possibility = list(possibilities[current_cell])[0]
+            if len(possibilities[current_cell]) != 1:
+                for c in range(len(list(possibilities[current_cell]))):
+                    chosen_possibility = list(possibilities[current_cell])[c]
+                    pid = os.fork()
+                    if pid == 0: #if in child process
+                        break
+
+            if pid != 0: #if in paarent process
+                break
+                
+            grid.loc[current_cell[0],current_cell[1]]= chosen_possibility
+            #print(grid)
             possibilities = calculate_possible_values(sub_grids, nbr_sub_grids)
             nbr_uniques = nbr_unique_possibility(possibilities)
-            print(f'Number of unique possibility cells : {nbr_uniques}')
+            #print(f'Number of unique possibility cells : {nbr_uniques}')
             
+    if pid != 0:
+        os.wait()
+
     if not possibilities:
-        print(grid)
+        print('\nSolution : \n',grid,'\n')
+        sys.stdout.flush()
             
 
 
